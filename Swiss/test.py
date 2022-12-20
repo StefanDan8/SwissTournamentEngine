@@ -1,21 +1,14 @@
-from Match import *
+from Swiss.Organisation import *
 
 player1 = Player('Carlos Magnussen', 2902.6)
 player2 = Player('Aron Levonian', 2790.1)
+player3 = Player('Ding Liren', 2424.2)
+match1 = Match(player2, player1)
+match2 = Match(player3, player2)
+match3 = Match(player1, player3)
 
-match = Match(player1, player2)
-print(player1.points)
-print(player2.points)
-print(match)
-match.setResult(Result.WHITE)
-print(match)
-print(player1.points)
-print(player2.points)
+print(random_pairs(8))
+# roundDf["Result"] = " "
 
-rematch = Match(player2, player1)
-rematch.setResult(Result.DRAW)
-print(match)
-print(player1.points)
-print(player2.points)
-
-print(player1.opponents)
+# player_list = [Player(pl.Player, pl.elo) for pl in myDf.iterrows()]
+# print(player_list[0])
