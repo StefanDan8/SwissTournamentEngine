@@ -18,7 +18,7 @@ def save_round_to_Excel(data: pd.DataFrame, filepath, sheet_name, index = True):
 def random_pairs(num_players: int, seed: int = 42) -> list[tuple]:
     random.seed(seed)
     # consider uneven case
-    indices = list(range(1, num_players + 1))
+    indices = list(range(0, num_players))
     tuples = []
     while len(indices) > 1:
         r1 = random.randrange(0, len(indices))
