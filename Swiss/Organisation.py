@@ -3,6 +3,7 @@ import operator
 from enum import Enum
 from typing import Final
 
+import networkx as nx
 import numpy as np
 
 from Swiss.utils import *
@@ -18,7 +19,6 @@ def read_players(df: pd.DataFrame) -> list:
 
 
 def play_round(matches: list) -> list:
-    random.seed(224)
     for match in matches:
         res = random.choice(list(Result))
         match.setResult(res)
@@ -34,6 +34,7 @@ class Tournament:
         self.path = os.path.normpath(path_to_spreadsheet)
         self.num: int = len(self.players)
         self.pairMatrix = np.zeros((self.num, self.num), dtype = bool)
+        random.seed(224)
 
     def first_round(self) -> list:
         matches: list = []
@@ -60,19 +61,48 @@ class Tournament:
                                itertools.groupby(sorted(self.players, key = get_score, reverse = True), get_score)]
         return buckets
 
-    # TODO this method
+    # for now, even number of players
+    # TODO own implementation
+    def score_group_matching(self, players: list, floaters: int) -> list:
+        n: int = len(players)
+        big_constant: Final[int] = 1000
+        for i in range(n):
+            players[i].pos = i + 1
+        B = (n - 2 * floaters) // 2
+        G = nx.Graph()
+        edges = []
+        for i in range(n):
+            for j in range(i + 1, n):
+                if not self.pairMatrix[players[i].id, players[j].id]:
+                    edge = (i, j, big_constant - compute_penalty(players[i], players[j], B))
+                    # print(edge)
+                    edges.append(edge)
+        G.add_weighted_edges_from(edges)
+        pairings: list = sorted(nx.max_weight_matching(G))
+        return pairings
 
-    def create_weight_matrix(self, players: list) -> np.ndarray:
-        num = len(players)
-        weight_matrix = np.diag([np.Inf] * num)
-        for i in range(num):
-            for j in range(i + 1, num):
-                p1: Player = players[i]
-                p2: Player = players[j]
-                if self.pairMatrix[p1.id, p2.id]:
-                    weight_matrix[i, j] = np.Inf
-                    weight_matrix[j, i] = np.Inf
-        return weight_matrix
+    # TODO from both ends and deal with middle
+    def matching(self) -> list:
+        matches: list = []
+        buckets: list[list] = self.create_buckets()
+        floating: int = 0
+        for i in range(len(buckets) - 1):
+            bucket = buckets[i]
+            pairings = self.score_group_matching(bucket, floating)
+            floating = len(bucket) - 2 * len(pairings)
+            if not floating == 0:
+                floaters = get_floaters(bucket, pairings)
+                buckets[i + 1] = floaters + buckets[i + 1]
+            for w, b in pairings:
+                matches.append(Match(bucket[w], bucket[b]))
+        bucket = buckets[len(buckets) - 1]
+        pairings = self.score_group_matching(bucket, floating)
+        for w, b in pairings:
+            matches.append(Match(bucket[w], bucket[b]))
+        floating = len(bucket) - 2 * len(pairings)
+        if not floating == 0:
+            print("Error: invalid matching!")
+        return matches
 
     def standings(self) -> list:
         players = sorted(self.players.copy(), key = lambda x: x.score, reverse = True)
@@ -83,6 +113,7 @@ class Tournament:
 
 class Player:
     def __init__(self, name: str, elo: float, my_id: int):
+        self.pos: int = 0
         self.id: int = my_id
         self.name: Final[str] = name
         self.elo: Final[float] = elo
@@ -99,6 +130,24 @@ class Player:
 
     def printInfo(self):
         print("My name is {} and I have an ELO of {}!".format(self.name, self.elo))
+
+
+def compute_penalty(p1: Player, p2: Player, B: int) -> int:
+    sij: int = abs(p1.score - p2.score)
+    oij: int = 0 if sij == 0 else 25 * sij * abs(p1.pos - p2.pos) - 500
+    nij: int = 10 * (p1.pos + p2.pos)
+    p: int = min(abs(p1.color), abs(p2.color))
+    cij: int = 25 * 8 ** p if p1.color * p2.color > 0 else 0
+    hij: int = (B - abs(p1.pos - p2.pos)) ** 2 if sij == 0 else 0
+    return oij + nij + cij + hij
+
+
+def get_floaters(players: list, pairings: list[tuple]) -> list:
+    floaters: list = players.copy()
+    l: list = sorted([item for t in pairings for item in t], reverse = True)
+    for i in l:
+        floaters.pop(i)
+    return floaters
 
 
 class Result(Enum):
