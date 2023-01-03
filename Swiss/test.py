@@ -3,14 +3,27 @@
 from Swiss.Organisation import *
 
 to = Tournament("titlu", 7, "../data/swissTournament.xlsx")
-to.export_to_dataframe(play_round(to.first_round()), 1, True)
-print(to.standings())
+to.export_to_dataframe(to.play_round(to.first_round()), 1, True)
+to.standings()
 # print(to.pairMatrix)
-
-to.export_to_dataframe(play_round(to.matching()), 2, True)
-print(to.standings())
-to.export_to_dataframe(play_round(to.matching()), 3, True)
-print(to.standings())
+for pl in to.players:
+    print(pl.color, end = " ")
+to.export_to_dataframe(to.play_round(to.matching()), 2, True)
+to.standings()
+for pl in to.players:
+    print(pl.color, end = " ")
+to.export_to_dataframe(to.play_round(to.matching()), 3, True)
+to.standings()
+for pl in to.players:
+    print(pl.color, end = " ")
+to.export_to_dataframe(to.play_round(to.matching()), 4, True)
+to.standings()
+for pl in to.players:
+    print(pl.color, end = " ")
+to.export_to_dataframe(to.play_round(to.matching()), 5, True)
+to.standings()
+for pl in to.players:
+    print(pl.color, end = " ")
 
 '''
 a = to.score_group_matching(buckets[0], 0)

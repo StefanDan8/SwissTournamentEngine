@@ -9,20 +9,9 @@ import numpy as np
 from Swiss.utils import *
 
 
-# def read_players(df: pd.DataFrame) -> list:
-#    return list(map(lambda x: Player(name = x[0], elo = x[1]), df.to_numpy()))
-
-
 def read_players(df: pd.DataFrame) -> list:
     players = [Player(name, elo, my_id = index) for (index, (name, elo)) in enumerate(zip(df['Player'], df['elo']))]
     return players
-
-
-def play_round(matches: list) -> list:
-    for match in matches:
-        res = random.choice(list(Result))
-        match.setResult(res)
-    return matches
 
 
 class Tournament:
@@ -43,6 +32,14 @@ class Tournament:
             self.pairMatrix[white, black] = True
             self.pairMatrix[black, white] = True
             matches.append(Match(self.players[white], self.players[black]))
+        return matches
+
+    def play_round(self, matches: list) -> list:
+        for match in matches:
+            res = random.choice(list(Result))
+            match.setResult(res)
+            self.pairMatrix[match.white.id, match.black.id] = True
+            self.pairMatrix[match.black.id, match.white.id] = True
         return matches
 
     def export_to_dataframe(self, matches: list, number: int, save: bool = False) -> pd.DataFrame:
@@ -75,33 +72,58 @@ class Tournament:
             for j in range(i + 1, n):
                 if not self.pairMatrix[players[i].id, players[j].id]:
                     edge = (i, j, big_constant - compute_penalty(players[i], players[j], B))
-                    # print(edge)
                     edges.append(edge)
         G.add_weighted_edges_from(edges)
         pairings: list = sorted(nx.max_weight_matching(G))
         return pairings
 
-    # TODO from both ends and deal with middle
+    # Much more ugly, but a bit better. Still, the solution from middle should be the best
     def matching(self) -> list:
-        matches: list = []
+        matches_stack: list[list] = []
         buckets: list[list] = self.create_buckets()
         floating: int = 0
         for i in range(len(buckets) - 1):
+            s_matches = []
             bucket = buckets[i]
             pairings = self.score_group_matching(bucket, floating)
             floating = len(bucket) - 2 * len(pairings)
-            if not floating == 0:
-                floaters = get_floaters(bucket, pairings)
-                buckets[i + 1] = floaters + buckets[i + 1]
             for w, b in pairings:
-                matches.append(Match(bucket[w], bucket[b]))
+                s_matches.append(Match(bucket[w], bucket[b]))
+            if not floating == 0:
+                indices = get_floaters2(buckets[i], pairings)
+                floaters = [buckets[i][j] for j in indices]
+                for k in sorted(indices, reverse = True):
+                    buckets[i].pop(k)
+                buckets[i + 1] = floaters + buckets[i + 1]
+            matches_stack.append(s_matches)
         bucket = buckets[len(buckets) - 1]
         pairings = self.score_group_matching(bucket, floating)
+        s_matches = []
         for w, b in pairings:
-            matches.append(Match(bucket[w], bucket[b]))
+            s_matches.append(Match(bucket[w], bucket[b]))
         floating = len(bucket) - 2 * len(pairings)
-        if not floating == 0:
-            print("Error: invalid matching!")
+        if floating == 0:
+            matches_stack.append(s_matches)
+        else:
+            s_matches = []
+            i = len(buckets) - 1
+            bucket = buckets[i]
+            floating = 0
+            while True:
+                i = i - 1
+                if i < 0:
+                    print("Error: invalid matching!")
+                    return []
+                matches_stack.pop()
+                bucket = bucket + buckets[i]
+                pairings = self.score_group_matching(bucket, floating)
+                floating = len(bucket) - 2 * len(pairings)
+                if floating == 0:
+                    break
+            for w, b in pairings:
+                s_matches.append(Match(bucket[w], bucket[b]))
+            matches_stack.append(s_matches)
+        matches = [match for r in matches_stack for match in r]
         return matches
 
     def standings(self) -> list:
@@ -138,8 +160,17 @@ def compute_penalty(p1: Player, p2: Player, B: int) -> int:
     nij: int = 10 * (p1.pos + p2.pos)
     p: int = min(abs(p1.color), abs(p2.color))
     cij: int = 25 * 8 ** p if p1.color * p2.color > 0 else 0
+    # TODO color penalty for -2 on p2 or 2 on p1
     hij: int = (B - abs(p1.pos - p2.pos)) ** 2 if sij == 0 else 0
     return oij + nij + cij + hij
+
+
+def get_floaters2(players: list, pairings: list[tuple]) -> list:
+    k = list(range(0, len(players)))
+    l: list = sorted([item for t in pairings for item in t], reverse = True)
+    for i in l:
+        k.pop(i)
+    return k
 
 
 def get_floaters(players: list, pairings: list[tuple]) -> list:
